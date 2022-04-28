@@ -75,6 +75,9 @@ def prep_data(df):
     df["year"] = df["month"].str[:4]
     # keep data only where cause starts with #
     df = df[df["cause"].str.startswith("#")]  # this keeps only the main groups of death
+    df.month = pd.to_datetime(df.month)
+    # drop 2022/03 due to missing data
+    df = df[df.month != "2022/03"]
     return df
 
 
@@ -176,6 +179,44 @@ def prep_covid():
     df.loc[df["age"] == "100+ years", "age"] = "100"
     # split age string and take the first number
     df.age = df.age.str.split().str[0]
+    # make age an int
+    df.age = df.age.astype(int)
+    # make a year column
+    df["year"] = df.month.str[:4]
+
+    return df
+
+
+def prep_age_deaths():
+    df = pd.read_csv("deaths_by_age_and_month.txt", sep="\t")
+    # remove redundant columns
+    # *** population data is in a different file **
+    df = df.drop(
+        columns=[
+            "Notes",
+            "Crude Rate",
+            "Population",
+            "Month",
+            "Gender",
+            "Single-Year Ages",
+        ]
+    )
+    # drop nulls caused by deleting the notes column
+    df.dropna(inplace=True)
+    # change the column names to be more readable
+    df.rename(
+        columns={"Single-Year Ages Code": "age", "Month Code": "month"}, inplace=True,
+    )
+    # make all columns lowercase
+    df.columns = df.columns.str.lower()
+    # replace all spaces with underscores
+    df.columns = df.columns.str.replace(" ", "_")
+    # replace all - with _
+    df.columns = df.columns.str.replace("-", "_")
+    # deaths to int
+    df["deaths"] = df["deaths"].astype(int)
+    # remove columns where age == 'NS'
+    df = df[df.age != "NS"]
     # make age an int
     df.age = df.age.astype(int)
     # make a year column
