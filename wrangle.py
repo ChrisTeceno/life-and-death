@@ -446,3 +446,13 @@ def make_df2():
         female_deaths_cols,
     )
 
+
+def get_df_only():
+    (
+        df2,
+        male_scaled_cols,
+        male_deaths_cols,
+        female_scaled_cols,
+        female_deaths_cols,
+    ) = make_df2()
+    return df2
