@@ -223,3 +223,13 @@ def prep_age_deaths():
     df["year"] = df.month.str[:4]
 
     return df
+
+
+def get_covid_all_ages():
+    covid_all_ages = prep_covid()
+    covid_all_ages.month = pd.to_datetime(covid_all_ages.month)
+    covid_all_ages["deaths_times_age"] = (
+        covid_all_ages["deaths"] * covid_all_ages["age"]
+    )
+    return covid_all_ages
+
