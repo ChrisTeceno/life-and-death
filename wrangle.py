@@ -11,6 +11,7 @@ import os
 
 # list all files in this directory with .txt
 def list_files(path):
+    """make a list of relevant files in the directory"""
     files = os.listdir(path)
     # choose only the files of concern
     files = [file for file in files if file.startswith("Provisional")]
@@ -18,6 +19,7 @@ def list_files(path):
 
 
 def make_df():
+    """make a dataframe from the files in the directory"""
     # get the list of files
     files = list_files(".")
     # create a dataframe for all the files
@@ -29,6 +31,7 @@ def make_df():
 
 
 def prep_data(df):
+    """prepare the dataframe for plotting"""
     # remove notes column
     df = df.drop(columns=["Notes"])
     # remove all rows with "Data not shown due to 6 month lag to account"
@@ -82,11 +85,13 @@ def prep_data(df):
 
 
 def get_population():
+    """get the population data"""
     population = pd.read_csv("population_by_age_and_year.txt", sep="\t")
     return population
 
 
 def prep_pop_data(df):
+    """prepare the population data"""
     # remove notes column
     df = df.drop(columns=["Notes"])
     # remove redundant columns
@@ -126,12 +131,14 @@ def prep_pop_data(df):
 
 
 def merge_data(df, population):
+    """merge the dataframes"""
     # merge the dataframes
     df = df.merge(population, on=["year", "age_group", "gender"])
     return df
 
 
 def wrangle_data():
+    """wrangle the data into the first major df"""
     df = make_df()
     df = prep_data(df)
     pop = get_population()
@@ -145,6 +152,7 @@ def wrangle_data():
 
 
 def prep_covid():
+    """prepare the covid data"""
     df = pd.read_csv("covid_deaths_by_age_and_month.txt", sep="\t")
     # remove redundant columns
     # *** population data is in a different file **
@@ -183,14 +191,16 @@ def prep_covid():
     df.age = df.age.astype(int)
     # make a year column
     df["year"] = df.month.str[:4]
-
+    df.month = pd.to_datetime(df.month)
+    df["deaths_times_age"] = df["deaths"] * df["age"]
     return df
 
 
 def prep_age_deaths():
-    df = pd.read_csv("deaths_by_age_and_month.txt", sep="\t")
+    """prepare the age deaths data"""
     # remove redundant columns
     # *** population data is in a different file **
+    df = pd.read_csv("deaths_by_age_and_month.txt", sep="\t")
     df = df.drop(
         columns=[
             "Notes",
@@ -221,7 +231,10 @@ def prep_age_deaths():
     df.age = df.age.astype(int)
     # make a year column
     df["year"] = df.month.str[:4]
-
+    # convert month to datetime
+    df.month = pd.to_datetime(df.month)
+    # add a column to use later for avg age of death
+    df["deaths_times_age"] = df["deaths"] * df["age"]
     return df
 
 
@@ -232,4 +245,204 @@ def get_covid_all_ages():
         covid_all_ages["deaths"] * covid_all_ages["age"]
     )
     return covid_all_ages
+
+
+def get_monthly_deaths():
+    """get the monthly deaths"""
+    df = wrangle_data()
+    covid_all_ages = get_covid_all_ages()
+    monthly_deaths = pd.DataFrame()
+    monthly_deaths["average_covid_death_age"] = (
+        covid_all_ages.groupby("month").sum()["deaths_times_age"]
+        / covid_all_ages.groupby("month").sum()["deaths"]
+    )
+    monthly_deaths["covid_deaths"] = covid_all_ages.groupby("month").sum()["deaths"]
+    monthly_deaths["scaled_covid"] = (
+        monthly_deaths["covid_deaths"] * 100 / monthly_deaths["covid_deaths"].max()
+    )
+    monthly_deaths["all_cause_deaths"] = df.groupby("month").sum()["deaths"]
+    monthly_deaths["scaled_all_cause"] = (
+        monthly_deaths["all_cause_deaths"]
+        * 100
+        / monthly_deaths["all_cause_deaths"].max()
+    )
+    return monthly_deaths
+
+
+def make_df2():
+    """make the second major df"""
+    deaths_by_age = prep_age_deaths()
+    df = wrangle_data()
+    monthly_deaths = get_monthly_deaths()
+    df2 = pd.DataFrame()
+    df2["all_cause_deaths"] = df.groupby("month").sum()["deaths"]
+    df2["covid_deaths"] = (
+        df[df.cause.str.contains("COVID-19")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_covid"] = df2["covid_deaths"] * 100 / df2["covid_deaths"].max()
+    df2["scaled_all_cause"] = (
+        df2["all_cause_deaths"] * 100 / df2["all_cause_deaths"].max()
+    )
+    df2["difference"] = df2["scaled_covid"] - df2["scaled_all_cause"]
+    df2["average_death_age"] = (
+        deaths_by_age.groupby("month").sum()["deaths_times_age"]
+        / deaths_by_age.groupby("month").sum()["deaths"]
+    )
+    df2["average_covid_death_age"] = monthly_deaths["average_covid_death_age"]
+    df2.fillna(0, inplace=True)  # fills all the prepandemic covid data with zeros
+    df2["heart_related_deaths"] = (
+        df[df.cause.str.contains("heart")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_heart_deaths"] = (
+        df2["heart_related_deaths"] * 100 / df2["heart_related_deaths"].max()
+    )
+    df2["homicide_deaths"] = (
+        df[df.cause.str.contains("homicide")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_homicide_deaths"] = (
+        df2["homicide_deaths"] * 100 / df2["homicide_deaths"].max()
+    )
+    df2["suicide_deaths"] = (
+        df[df.cause.str.contains("suicide")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_suicide_deaths"] = (
+        df2["suicide_deaths"] * 100 / df2["suicide_deaths"].max()
+    )
+    df2["diabetes_deaths"] = (
+        df[df.cause.str.contains("Diabetes")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_diabetes_deaths"] = (
+        df2["diabetes_deaths"] * 100 / df2["diabetes_deaths"].max()
+    )
+    df2["accident_deaths"] = (
+        df[df.cause.str.contains("Accident")].groupby("month").sum()["deaths"]
+    )
+    df2["scaled_accident_deaths"] = (
+        df2["accident_deaths"] * 100 / df2["accident_deaths"].max()
+    )
+    # make a male death df
+    df_male = df[df.gender == "Male"].copy()
+    # assign month to datetime
+    df_male.month = pd.to_datetime(df_male.month)
+    # repeat for female
+    df_female = df[df.gender == "Female"].copy()
+    df_female.month = pd.to_datetime(df_female.month)
+    # add male deaths
+    df2["male_covid_deaths"] = (
+        df_male[df_male.cause.str.contains("COVID-19")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_covid"] = df2["covid_deaths"] * 100 / df2["covid_deaths"].max()
+    df2["male_covid_deaths"].fillna(
+        0, inplace=True
+    )  # fills all the prepandemic covid data with zeros
+    df2["male_heart_related_deaths"] = (
+        df_male[df_male.cause.str.contains("heart")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_heart_deaths"] = (
+        df2["male_heart_related_deaths"] * 100 / df2["male_heart_related_deaths"].max()
+    )
+    df2["male_homicide_deaths"] = (
+        df_male[df_male.cause.str.contains("homicide")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_homicide_deaths"] = (
+        df2["male_homicide_deaths"] * 100 / df2["male_homicide_deaths"].max()
+    )
+    df2["male_suicide_deaths"] = (
+        df_male[df_male.cause.str.contains("suicide")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_suicide_deaths"] = (
+        df2["male_suicide_deaths"] * 100 / df2["male_suicide_deaths"].max()
+    )
+    df2["male_diabetes_deaths"] = (
+        df_male[df_male.cause.str.contains("Diabetes")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_diabetes_deaths"] = (
+        df2["male_diabetes_deaths"] * 100 / df2["male_diabetes_deaths"].max()
+    )
+    df2["male_accident_deaths"] = (
+        df_male[df_male.cause.str.contains("Accident")].groupby("month").sum()["deaths"]
+    )
+    df2["male_scaled_accident_deaths"] = (
+        df2["male_accident_deaths"] * 100 / df2["male_accident_deaths"].max()
+    )
+    # list of columns where name contains 'scaled'
+    male_scaled_cols = [
+        col for col in df2.columns if ("male" in col) and ("scaled" in col)
+    ]
+    # list cols where deaths in name bad scaled is not
+    male_deaths_cols = [
+        col
+        for col in df2.columns
+        if ("male" in col) and ("deaths" in col) and ("scaled" not in col)
+    ]
+
+    # add female deaths
+    df2["female_covid_deaths"] = (
+        df_female[df_female.cause.str.contains("COVID-19")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_covid"] = df2["covid_deaths"] * 100 / df2["covid_deaths"].max()
+    df2["female_covid_deaths"].fillna(
+        0, inplace=True
+    )  # fills all the prepandemic covid data with zeros
+    df2["female_heart_related_deaths"] = (
+        df_female[df_female.cause.str.contains("heart")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_heart_deaths"] = (
+        df2["female_heart_related_deaths"]
+        * 100
+        / df2["female_heart_related_deaths"].max()
+    )
+    df2["female_homicide_deaths"] = (
+        df_female[df_female.cause.str.contains("homicide")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_homicide_deaths"] = (
+        df2["female_homicide_deaths"] * 100 / df2["female_homicide_deaths"].max()
+    )
+    df2["female_suicide_deaths"] = (
+        df_female[df_female.cause.str.contains("suicide")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_suicide_deaths"] = (
+        df2["female_suicide_deaths"] * 100 / df2["female_suicide_deaths"].max()
+    )
+    df2["female_diabetes_deaths"] = (
+        df_female[df_female.cause.str.contains("Diabetes")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_diabetes_deaths"] = (
+        df2["female_diabetes_deaths"] * 100 / df2["female_diabetes_deaths"].max()
+    )
+    df2["female_accident_deaths"] = (
+        df_female[df_female.cause.str.contains("Accident")]
+        .groupby("month")
+        .sum()["deaths"]
+    )
+    df2["female_scaled_accident_deaths"] = (
+        df2["female_accident_deaths"] * 100 / df2["female_accident_deaths"].max()
+    )
+    # list of columns where name contains 'scaled'
+    female_scaled_cols = [
+        col for col in df2.columns if ("female" in col) and ("scaled" in col)
+    ]
+    # list cols where deaths in name bad scaled is not
+    female_deaths_cols = [
+        col
+        for col in df2.columns
+        if ("female" in col) and ("deaths" in col) and ("scaled" not in col)
+    ]
+    return (
+        df2,
+        male_scaled_cols,
+        male_deaths_cols,
+        female_scaled_cols,
+        female_deaths_cols,
+    )
 
