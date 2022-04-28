@@ -47,7 +47,7 @@ The data is in a mostly usable format with some exceptions. The exceptions are:
 5. There are a lot of areas to spend our time money and energy on to reduce overall death and furthermore to improve the quality and quantity of life for the majority of Americans long term.
 
 ## Modeling
-With more time a forecasting will be done on all relevant causes of death.
+With more time a forecast will be done on all relevant causes of death.
 
 # Conclusion
 Covid kills, and that is absolutely horrible. But other things kill as well and have been for a long time and will continue to do so. Fortunately the covid deaths are concentrated in the ages closer to end of life.
